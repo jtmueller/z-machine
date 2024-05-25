@@ -1,24 +1,54 @@
 const std = @import("std");
 
+const KILOBYTES = 1024;
+const MAX_STORY_SIZE = 512 * KILOBYTES;
+
+// Z-Machine header information
+const VERSION_OFFSET = 0;
+
+const RndGen = std.rand.DefaultPrng;
+const testing = std.testing;
+
+const ZMachine = struct {
+    memory: [MAX_STORY_SIZE]u8, // 512KB is maximum supported memory for last Z-Machine (v8)
+};
+
+var vm = ZMachine{ .memory = undefined };
+
 pub fn main() !void {
-    // Prints to stderr (it's a shortcut based on `std.io.getStdErr()`)
-    std.debug.print("All your {s} are belong to us.\n", .{"codebase"});
+    const zork_path = "rom/zork2-r63-s860811.z3";
+    var zork_file = try std.fs.cwd().openFile(zork_path, .{});
+    defer zork_file.close();
 
-    // stdout is for the actual output of your application, for example if you
-    // are implementing gzip, then only the compressed bytes should be sent to
-    // stdout, not any debugging messages.
-    const stdout_file = std.io.getStdOut().writer();
-    var bw = std.io.bufferedWriter(stdout_file);
-    const stdout = bw.writer();
+    const expected_file_size = try zork_file.getEndPos();
+    const bytes_read = try zork_file.readAll(vm.memory[0..expected_file_size]);
+    if (bytes_read != expected_file_size) {
+        return std.debug.print("Failed to read entire file: {s}. {d} of {d} bytes read.\n", .{ zork_path, bytes_read, expected_file_size });
+    }
 
-    try stdout.print("Run `zig build test` to run the tests.\n", .{});
-
-    try bw.flush(); // don't forget to flush!
+    std.debug.print("Z-Machine Information: {}\n", .{vm.memory[VERSION_OFFSET]});
 }
 
-test "simple test" {
-    var list = std.ArrayList(i32).init(std.testing.allocator);
-    defer list.deinit(); // try commenting this out and see if zig detects the memory leak!
-    try list.append(42);
-    try std.testing.expectEqual(@as(i32, 42), list.pop());
+test "RNG can repeat with identical seed" {
+    var rng = RndGen.init(0);
+    const firstValues = [4]i16{ rng.random().int(i16), rng.random().int(i16), rng.random().int(i16), rng.random().int(i16) };
+
+    rng = RndGen.init(0);
+    const secondValues = [4]i16{ rng.random().int(i16), rng.random().int(i16), rng.random().int(i16), rng.random().int(i16) };
+
+    try testing.expectEqualSlices(i16, &firstValues, &secondValues);
+}
+
+test "RNG should not repeat with different seeds" {
+    var seedRng = RndGen.init(0);
+
+    var rng = RndGen.init(seedRng.random().int(u64));
+    const firstValues = [4]i16{ rng.random().int(i16), rng.random().int(i16), rng.random().int(i16), rng.random().int(i16) };
+
+    rng = RndGen.init(seedRng.random().int(u64));
+    const secondValues = [4]i16{ rng.random().int(i16), rng.random().int(i16), rng.random().int(i16), rng.random().int(i16) };
+
+    for (firstValues, 0..) |_, index| {
+        try testing.expect(firstValues[index] != secondValues[index]);
+    }
 }

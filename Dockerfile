@@ -2,7 +2,7 @@
 FROM ubuntu:latest
 
 
-ENV ZIG_VERSION 0.10.0
+ENV ZIG_VERSION 0.12.0
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Main dependencies
