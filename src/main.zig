@@ -29,8 +29,10 @@ const ZMachine = struct {
         return self.memory[0x0];
     }
 
-    fn story_length(self: *ZMachine) u16 {
-        return read_word(self, 0x1A);
+    fn story_length(self: *ZMachine) u32 {
+        // Up to v3, the story length this value multiplied by 2.
+        // See "packed addresses" in the specification for more information.
+        return @as(u32, read_word(self, 0x1A)) * 2;
     }
 
     fn story_checksum(self: *ZMachine) u16 {
@@ -72,6 +74,33 @@ const ZMachine = struct {
         // Z-Machine is Big Endian. Need to swap around the bytes on Little Endian systems.
         return @as(u16, self.memory[addr]) << 8 | @as(u16, self.memory[addr + 1]);
     }
+
+    //
+    // Debug Helpers
+    //
+    fn print_memory(self: *ZMachine, start_addr: u16, lines: u8) void {
+        const BYTES_PER_LINE = 16;
+
+        const aligned_start = start_addr & 0xFFF0;
+        const aligned_end = (start_addr + BYTES_PER_LINE * lines) & 0xFFF0;
+
+        var curr_addr = aligned_start;
+        std.debug.print("        00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F\n", .{});
+        //std.debug.print("------------------------------------------------------\n", .{});
+        while (curr_addr < aligned_end) {
+            var curr_offset: u8 = 0;
+            std.debug.print("0x{X:0>4}: ", .{curr_addr + curr_offset});
+            while (curr_offset < BYTES_PER_LINE) {
+                const curr_byte = self.memory[curr_addr + curr_offset];
+                std.debug.print("{X:0>2} ", .{curr_byte});
+                curr_offset += 1;
+            }
+
+            std.debug.print("\n", .{});
+            curr_addr += BYTES_PER_LINE;
+        }
+        std.debug.print("\n", .{});
+    }
 };
 
 var vm = ZMachine{ .memory = undefined };
@@ -81,9 +110,9 @@ pub fn main() !void {
 
     try vm.load_story(zork_path);
 
-    std.debug.print("Z-Machine Information:\n", .{});
+    std.debug.print("\nZ-Machine Information:\n", .{});
     std.debug.print("\tStory Version: {d}\n", .{vm.story_version()});
-    std.debug.print("\tStory Length: {d}\n", .{vm.story_length()});
+    std.debug.print("\tStory Length: {d}KB (max address: 0x{X:0>8})\n", .{ vm.story_length() / KILOBYTES, vm.story_length() - 1 });
     std.debug.print("\tStory Checksum: 0x{X:0>4}\n", .{vm.story_checksum()});
     std.debug.print("\tHigh Memory Base: 0x{X:0>4}\n", .{vm.high_mem_base()});
     std.debug.print("\tStatic Memory Base: 0x{X:0>4}\n", .{vm.static_mem_base()});
@@ -91,5 +120,7 @@ pub fn main() !void {
     std.debug.print("\tDictionary Location: 0x{X:0>4}\n", .{vm.dict_loc()});
     std.debug.print("\tObject Table Location: 0x{X:0>4}\n", .{vm.obj_loc()});
     std.debug.print("\tGlobals Location: 0x{X:0>4}\n", .{vm.globals_loc()});
-    std.debug.print("\tAbbreviation Table Location: 0x{X:0>4}\n", .{vm.abbrev_loc()});
+    std.debug.print("\tAbbreviation Table Location: 0x{X:0>4}\n\n", .{vm.abbrev_loc()});
+
+    vm.print_memory(vm.dict_loc(), 12);
 }
