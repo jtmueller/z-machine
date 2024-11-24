@@ -1,4 +1,5 @@
 const std = @import("std");
+const Allocator = std.mem.Allocator;
 
 const KILOBYTES = 1024;
 const MAX_STORY_SIZE = 512 * KILOBYTES;
@@ -8,23 +9,29 @@ const StoryLoadError = error{
 };
 
 const ZMachine = struct {
-    memory: [MAX_STORY_SIZE]u8, // 512KB is maximum supported memory for last Z-Machine (v8)
+    memory: []u8,
 
-    fn load_story(self: *ZMachine, path_to_story: []const u8) !void {
-        var zork_file = try std.fs.cwd().openFile(path_to_story, .{});
-        defer zork_file.close();
+    const Self = @This();
 
-        const expected_file_size = try zork_file.getEndPos();
-        const bytes_read = try zork_file.readAll(self.memory[0..expected_file_size]);
+    pub fn init(path_to_story: []const u8, allocator: Allocator) !Self {
+        var story_file = try std.fs.cwd().openFile(path_to_story, .{});
+        defer story_file.close();
+
+        const expected_file_size = try story_file.getEndPos();
+        const memory = try allocator.alloc(u8, expected_file_size);
+        const bytes_read = try story_file.readAll(memory);
         if (bytes_read != expected_file_size) {
             std.debug.print("Failed to read entire file: {s}. {d} of {d} bytes read.\n", .{ path_to_story, bytes_read, expected_file_size });
             return StoryLoadError.IncompleteRead;
         }
+        return .{ .memory = memory };
     }
 
-    //
-    // Z-Machine Header
-    //
+    fn deinit(self: *ZMachine, allocator: Allocator) void {
+        allocator.free(self.memory);
+    }
+
+    /// Z-Machine Header
     fn story_version(self: *ZMachine) u8 {
         return self.memory[0x0];
     }
@@ -103,12 +110,14 @@ const ZMachine = struct {
     }
 };
 
-var vm = ZMachine{ .memory = undefined };
-
 pub fn main() !void {
-    const zork_path = "rom/zork2-r63-s860811.z3";
+    const story_path = "rom/zork2-r63-s860811.z3";
 
-    try vm.load_story(zork_path);
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const allocator = gpa.allocator();
+
+    var vm = try ZMachine.init(story_path, allocator);
+    defer vm.deinit(allocator);
 
     std.debug.print("\nZ-Machine Information:\n", .{});
     std.debug.print("\tStory Version: {d}\n", .{vm.story_version()});
