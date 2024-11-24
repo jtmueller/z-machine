@@ -1,0 +1,10 @@
+pub const HEADER = 0x0;
+pub const STORY_LENGTH = 0x1A;
+pub const STORY_CHECKSUM = 0x1C;
+pub const HIGH_MEM_BASE = 0x4;
+pub const STATIC_MEM_BASE = 0xE;
+pub const INITIAL_PC = 0x6;
+pub const DICT_LOC = 0x8;
+pub const OBJ_LOC = 0xA;
+pub const GLOBALS_LOC = 0xC;
+pub const ABBREV_LOC = 0x18;

@@ -1,4 +1,5 @@
 const std = @import("std");
+const consts = @import("consts.zig");
 const Allocator = std.mem.Allocator;
 
 const KILOBYTES = 1024;
@@ -9,7 +10,13 @@ pub const StoryLoadError = error{
 };
 
 pub const ZMachine = struct {
+    allocator: Allocator,
     memory: []u8,
+    stack: std.ArrayList(u16),
+    /// Z-Machine Header
+    story_version: u8,
+    /// Program Counter
+    pc: u16,
 
     const Self = @This();
 
@@ -21,66 +28,69 @@ pub const ZMachine = struct {
         const memory = try allocator.alloc(u8, expected_file_size);
         const bytes_read = try story_file.readAll(memory);
         if (bytes_read != expected_file_size) {
-            std.debug.print("Failed to read entire file: {s}. {d} of {d} bytes read.\n", .{ path_to_story, bytes_read, expected_file_size });
+            std.debug.print(
+                "Failed to read entire file: {s}. {d} of {d} bytes read.\n",
+                .{ path_to_story, bytes_read, expected_file_size },
+            );
             return StoryLoadError.IncompleteRead;
         }
-        return .{ .memory = memory };
+
+        const stack = std.ArrayList(u16).init(allocator);
+
+        return .{
+            .allocator = allocator,
+            .memory = memory,
+            .stack = stack,
+            .story_version = memory[consts.HEADER],
+            .pc = read_word(memory, consts.INITIAL_PC),
+        };
     }
 
-    pub fn deinit(self: *Self, allocator: Allocator) void {
-        allocator.free(self.memory);
-    }
-
-    /// Z-Machine Header
-    pub fn story_version(self: *Self) u8 {
-        return self.memory[0x0];
+    pub fn deinit(self: *Self) void {
+        self.stack.deinit();
+        self.allocator.free(self.memory);
     }
 
     pub fn story_length(self: *Self) u32 {
         // Up to v3, the story length this value multiplied by 2.
         // See "packed addresses" in the specification for more information.
-        return @as(u32, read_word(self, 0x1A)) * 2;
+        return @as(u32, read_word(self.memory, consts.STORY_LENGTH)) * 2;
     }
 
     pub fn story_checksum(self: *Self) u16 {
-        return read_word(self, 0x1C);
+        return read_word(self.memory, consts.STORY_CHECKSUM);
     }
 
     pub fn high_mem_base(self: *Self) u16 {
-        return read_word(self, 0x4);
+        return read_word(self.memory, consts.HIGH_MEM_BASE);
     }
 
     pub fn static_mem_base(self: *Self) u16 {
-        return read_word(self, 0xE);
-    }
-
-    pub fn initial_pc(self: *Self) u16 {
-        return read_word(self, 0x6);
+        return read_word(self.memory, consts.STATIC_MEM_BASE);
     }
 
     pub fn dict_loc(self: *Self) u16 {
-        return read_word(self, 0x8);
+        return read_word(self.memory, consts.DICT_LOC);
     }
 
     pub fn obj_loc(self: *Self) u16 {
-        return read_word(self, 0xA);
+        return read_word(self.memory, consts.OBJ_LOC);
     }
 
     pub fn globals_loc(self: *Self) u16 {
-        return read_word(self, 0xC);
+        return read_word(self.memory, consts.GLOBALS_LOC);
     }
 
     pub fn abbrev_loc(self: *Self) u16 {
-        return read_word(self, 0x18);
+        return read_word(self.memory, consts.ABBREV_LOC);
     }
 
     //
     // Memory Read/Write
     //
-    fn read_word(self: *Self, addr: u16) u16 {
+    fn read_word(memory: []u8, addr: u16) u16 {
         // Z-Machine is Big Endian. Need to swap around the bytes on Little Endian systems.
-        //return @as(u16, self.memory[addr]) << 8 | @as(u16, self.memory[addr + 1]);
-        return std.mem.readInt(u16, self.memory[addr..][0..2], .big);
+        return std.mem.readInt(u16, memory[addr..][0..2], .big);
     }
 
     //
@@ -92,20 +102,20 @@ pub const ZMachine = struct {
         const aligned_start = start_addr & 0xFFF0;
         const aligned_end = (start_addr + BYTES_PER_LINE * lines) & 0xFFF0;
 
-        var curr_addr = aligned_start;
+        var cur_addr = aligned_start;
         std.debug.print("        00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F\n", .{});
-        //std.debug.print("------------------------------------------------------\n", .{});
-        while (curr_addr < aligned_end) {
-            var curr_offset: u8 = 0;
-            std.debug.print("0x{X:0>4}: ", .{curr_addr + curr_offset});
-            while (curr_offset < BYTES_PER_LINE) {
-                const curr_byte = self.memory[curr_addr + curr_offset];
-                std.debug.print("{X:0>2} ", .{curr_byte});
-                curr_offset += 1;
+        std.debug.print("-------------------------------------------------------\n", .{});
+
+        while (cur_addr < aligned_end) {
+            std.debug.print("0x{X:0>4}: ", .{cur_addr});
+            const next_addr = cur_addr + BYTES_PER_LINE;
+            const line = self.memory[cur_addr..next_addr];
+            for (line) |byte| {
+                std.debug.print("{X:0>2} ", .{byte});
             }
 
             std.debug.print("\n", .{});
-            curr_addr += BYTES_PER_LINE;
+            cur_addr = next_addr;
         }
         std.debug.print("\n", .{});
     }

@@ -19,8 +19,6 @@ pub fn main() !void {
     );
 
     // Initialize our diagnostics, which can be used for reporting useful errors.
-    // This is optional. You can also pass `.{}` to `clap.parse` if you don't
-    // care about the extra information `Diagnostics` provides.
     var diag = clap.Diagnostic{};
     var res = clap.parse(clap.Help, &params, clap.parsers.default, .{
         .diagnostic = &diag,
@@ -40,16 +38,18 @@ pub fn main() !void {
     }
 
     if (res.args.file) |file| {
+        res.deinit();
+
         var vm = try ZMachine.init(file, allocator);
-        defer vm.deinit(allocator);
+        defer vm.deinit();
 
         std.debug.print("\nZ-Machine Information:\n", .{});
-        std.debug.print("\tStory Version: {d}\n", .{vm.story_version()});
+        std.debug.print("\tStory Version: {d}\n", .{vm.story_version});
         std.debug.print("\tStory Length: {d}KB (max address: 0x{X:0>8})\n", .{ vm.story_length() / KILOBYTES, vm.story_length() - 1 });
         std.debug.print("\tStory Checksum: 0x{X:0>4}\n", .{vm.story_checksum()});
         std.debug.print("\tHigh Memory Base: 0x{X:0>4}\n", .{vm.high_mem_base()});
         std.debug.print("\tStatic Memory Base: 0x{X:0>4}\n", .{vm.static_mem_base()});
-        std.debug.print("\tInitial PC: 0x{X:0>4}\n", .{vm.initial_pc()});
+        std.debug.print("\tProgram Counter: 0x{X:0>4}\n", .{vm.pc});
         std.debug.print("\tDictionary Location: 0x{X:0>4}\n", .{vm.dict_loc()});
         std.debug.print("\tObject Table Location: 0x{X:0>4}\n", .{vm.obj_loc()});
         std.debug.print("\tGlobals Location: 0x{X:0>4}\n", .{vm.globals_loc()});
