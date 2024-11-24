@@ -79,7 +79,8 @@ pub const ZMachine = struct {
     //
     fn read_word(self: *Self, addr: u16) u16 {
         // Z-Machine is Big Endian. Need to swap around the bytes on Little Endian systems.
-        return @as(u16, self.memory[addr]) << 8 | @as(u16, self.memory[addr + 1]);
+        //return @as(u16, self.memory[addr]) << 8 | @as(u16, self.memory[addr + 1]);
+        return std.mem.readInt(u16, self.memory[addr..][0..2], .big);
     }
 
     //
