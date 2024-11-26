@@ -1,5 +1,7 @@
 const std = @import("std");
 const consts = @import("consts.zig");
+const read_word = @import("utils.zig").read_word;
+const Headers = @import("headers.zig").Headers;
 const Allocator = std.mem.Allocator;
 
 const KILOBYTES = 1024;
@@ -7,14 +9,23 @@ const MAX_STORY_SIZE = 512 * KILOBYTES;
 
 pub const StoryLoadError = error{
     IncompleteRead,
+    UnsupportedStoryVersion,
+};
+
+pub const PackType = enum(u1) {
+    Routine,
+    ZString,
 };
 
 pub const ZMachine = struct {
     allocator: Allocator,
     memory: []u8,
+    headers: Headers,
     stack: std.ArrayList(u16),
-    /// Z-Machine Header
-    story_version: u8,
+    /// Global variables (240 of them)
+    globals: []u16,
+    /// Local variables (15 of them)
+    locals: [15]u16,
     /// Program Counter
     pc: u16,
 
@@ -36,13 +47,23 @@ pub const ZMachine = struct {
         }
 
         const stack = std.ArrayList(u16).init(allocator);
+        var headers = Headers.init(memory);
+
+        if (headers.story_version() == 0) {
+            return StoryLoadError.UnsupportedStoryVersion;
+        }
+
+        const globals_loc = headers.globals_loc();
 
         return .{
             .allocator = allocator,
             .memory = memory,
+            .headers = headers,
             .stack = stack,
-            .story_version = memory[consts.HEADER],
-            .pc = read_word(memory, consts.INITIAL_PC),
+            .locals = [_]u16{0} ** 15,
+            // TODO: these won't work, need to swap big-endian bits for each word
+            .globals = @alignCast(std.mem.bytesAsSlice(u16, memory[globals_loc..][0..(240 * 2)])),
+            .pc = headers.initial_pc(),
         };
     }
 
@@ -51,46 +72,15 @@ pub const ZMachine = struct {
         self.allocator.free(self.memory);
     }
 
-    pub fn story_length(self: *Self) u32 {
-        // Up to v3, the story length this value multiplied by 2.
-        // See "packed addresses" in the specification for more information.
-        return @as(u32, read_word(self.memory, consts.STORY_LENGTH)) * 2;
-    }
-
-    pub fn story_checksum(self: *Self) u16 {
-        return read_word(self.memory, consts.STORY_CHECKSUM);
-    }
-
-    pub fn high_mem_base(self: *Self) u16 {
-        return read_word(self.memory, consts.HIGH_MEM_BASE);
-    }
-
-    pub fn static_mem_base(self: *Self) u16 {
-        return read_word(self.memory, consts.STATIC_MEM_BASE);
-    }
-
-    pub fn dict_loc(self: *Self) u16 {
-        return read_word(self.memory, consts.DICT_LOC);
-    }
-
-    pub fn obj_loc(self: *Self) u16 {
-        return read_word(self.memory, consts.OBJ_LOC);
-    }
-
-    pub fn globals_loc(self: *Self) u16 {
-        return read_word(self.memory, consts.GLOBALS_LOC);
-    }
-
-    pub fn abbrev_loc(self: *Self) u16 {
-        return read_word(self.memory, consts.ABBREV_LOC);
-    }
-
-    //
-    // Memory Read/Write
-    //
-    fn read_word(memory: []u8, addr: u16) u16 {
-        // Z-Machine is Big Endian. Need to swap around the bytes on Little Endian systems.
-        return std.mem.readInt(u16, memory[addr..][0..2], .big);
+    fn unpack_addr(self: *Self, addr: u16, pack_type: PackType) u32 {
+        switch (self.headers.story_version()) {
+            1...3 => addr * 2,
+            4, 5 => addr * 4,
+            6, 7 => (addr * 4) +
+                (8 * self.memory[if (pack_type == .routine) consts.UNPACK_ROUTINE else consts.UNPACK_ZSTRING]),
+            8 => addr * 8,
+            else => unreachable,
+        }
     }
 
     //

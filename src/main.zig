@@ -44,18 +44,18 @@ pub fn main() !void {
         defer vm.deinit();
 
         std.debug.print("\nZ-Machine Information:\n", .{});
-        std.debug.print("\tStory Version: {d}\n", .{vm.story_version});
-        std.debug.print("\tStory Length: {d}KB (max address: 0x{X:0>8})\n", .{ vm.story_length() / KILOBYTES, vm.story_length() - 1 });
-        std.debug.print("\tStory Checksum: 0x{X:0>4}\n", .{vm.story_checksum()});
-        std.debug.print("\tHigh Memory Base: 0x{X:0>4}\n", .{vm.high_mem_base()});
-        std.debug.print("\tStatic Memory Base: 0x{X:0>4}\n", .{vm.static_mem_base()});
+        std.debug.print("\tStory Version: {d}\n", .{vm.headers.story_version()});
+        std.debug.print("\tStory Length: {d}KB (max address: 0x{X:0>8})\n", .{ vm.headers.story_length() / KILOBYTES, vm.headers.story_length() - 1 });
+        std.debug.print("\tStory Checksum: 0x{X:0>4}\n", .{vm.headers.story_checksum()});
+        std.debug.print("\tHigh Memory Base: 0x{X:0>4}\n", .{vm.headers.high_mem_base()});
+        std.debug.print("\tStatic Memory Base: 0x{X:0>4}\n", .{vm.headers.static_mem_base()});
         std.debug.print("\tProgram Counter: 0x{X:0>4}\n", .{vm.pc});
-        std.debug.print("\tDictionary Location: 0x{X:0>4}\n", .{vm.dict_loc()});
-        std.debug.print("\tObject Table Location: 0x{X:0>4}\n", .{vm.obj_loc()});
-        std.debug.print("\tGlobals Location: 0x{X:0>4}\n", .{vm.globals_loc()});
-        std.debug.print("\tAbbreviation Table Location: 0x{X:0>4}\n\n", .{vm.abbrev_loc()});
+        std.debug.print("\tDictionary Location: 0x{X:0>4}\n", .{vm.headers.dict_loc()});
+        std.debug.print("\tObject Table Location: 0x{X:0>4}\n", .{vm.headers.obj_loc()});
+        std.debug.print("\tGlobals Location: 0x{X:0>4}\n", .{vm.headers.globals_loc()});
+        std.debug.print("\tAbbreviation Table Location: 0x{X:0>4}\n\n", .{vm.headers.abbrev_loc()});
 
-        return vm.print_memory(vm.dict_loc(), 12);
+        return vm.print_memory(vm.headers.dict_loc(), 12);
     }
 
     return clap.help(std.io.getStdErr().writer(), clap.Help, &params, .{});
