@@ -2,6 +2,7 @@ const std = @import("std");
 const consts = @import("consts.zig");
 const read_word = @import("utils.zig").read_word;
 const Headers = @import("headers.zig").Headers;
+const VariableSlots = @import("variables.zig").VariableSlots;
 const Allocator = std.mem.Allocator;
 
 const KILOBYTES = 1024;
@@ -13,8 +14,8 @@ pub const StoryLoadError = error{
 };
 
 pub const PackType = enum(u1) {
-    Routine,
-    ZString,
+    routine,
+    zstring,
 };
 
 pub const ZMachine = struct {
@@ -23,9 +24,9 @@ pub const ZMachine = struct {
     headers: Headers,
     stack: std.ArrayList(u16),
     /// Global variables (240 of them)
-    globals: []u16,
+    globals: VariableSlots,
     /// Local variables (15 of them)
-    locals: [15]u16,
+    locals: VariableSlots,
     /// Program Counter
     pc: u16,
 
@@ -60,15 +61,15 @@ pub const ZMachine = struct {
             .memory = memory,
             .headers = headers,
             .stack = stack,
-            .locals = [_]u16{0} ** 15,
-            // TODO: these won't work, need to swap big-endian bits for each word
-            .globals = @alignCast(std.mem.bytesAsSlice(u16, memory[globals_loc..][0..(240 * 2)])),
+            .globals = VariableSlots.init_bytes(memory[globals_loc..][0..(240 * 2)]),
+            .locals = try VariableSlots.init_size(15, allocator),
             .pc = headers.initial_pc(),
         };
     }
 
     pub fn deinit(self: *Self) void {
         self.stack.deinit();
+        self.locals.deinit(self.allocator);
         self.allocator.free(self.memory);
     }
 
@@ -77,7 +78,7 @@ pub const ZMachine = struct {
             1...3 => addr * 2,
             4, 5 => addr * 4,
             6, 7 => (addr * 4) +
-                (8 * self.memory[if (pack_type == .routine) consts.UNPACK_ROUTINE else consts.UNPACK_ZSTRING]),
+                (8 * self.memory[if (pack_type == .routine) consts.ROUTINES_OFFSET else consts.ZSTRINGS_OFFSET]),
             8 => addr * 8,
             else => unreachable,
         }

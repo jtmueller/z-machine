@@ -34,23 +34,23 @@ pub const Headers = struct {
     }
 
     pub fn dict_loc(self: *Self) u16 {
-        return utils.read_word(self.bytes, consts.DICT_LOC);
+        return utils.read_word(self.bytes, consts.DICT_OFFSET);
     }
 
     pub fn obj_loc(self: *Self) u16 {
-        return utils.read_word(self.bytes, consts.OBJ_LOC);
+        return utils.read_word(self.bytes, consts.OBJECTS_OFFSET);
     }
 
     pub fn globals_loc(self: *Self) u16 {
-        return utils.read_word(self.bytes, consts.GLOBALS_LOC);
+        return utils.read_word(self.bytes, consts.GLOBALS_OFFSET);
     }
 
     pub fn abbrev_loc(self: *Self) u16 {
-        return utils.read_word(self.bytes, consts.ABBREV_LOC);
+        return utils.read_word(self.bytes, consts.ABBREV_OFFSET);
     }
 
     pub fn flags1(self: *Self) Flags1 {
-        const fv = self.bytes[consts.FLAGS1_LOC];
+        const fv = self.bytes[consts.FLAGS1_OFFSET];
         if (story_version(self) < 4) {
             return .{ .v1_3 = @bitCast(fv) };
         } else {
@@ -63,15 +63,20 @@ pub const Headers = struct {
             .v1_3 => |v| @bitCast(v),
             .v4 => |v| @bitCast(v),
         };
-        self.bytes[consts.FLAGS1_LOC] = @bitCast(fv);
+        self.bytes[consts.FLAGS1_OFFSET] = @bitCast(fv);
     }
 
     pub fn flags2(self: *Self) Flags2 {
-        return @bitCast(self.bytes[consts.FLAGS2_LOC]);
+        return @bitCast(self.bytes[consts.FLAGS2_OFFSET]);
     }
 
     pub fn set_flags2(self: *Self, flags: Flags2) void {
-        self.bytes[consts.FLAGS2_LOC] = @bitCast(flags);
+        self.bytes[consts.FLAGS2_OFFSET] = @bitCast(flags);
+    }
+
+    /// ASCII - usually a date in YYMMDD format.
+    pub fn serial(self: *Self) []u8 {
+        return self.bytes[consts.SERIAL_OFFSET..][0..6];
     }
 
     pub fn story_length(self: *Self) u32 {

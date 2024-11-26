@@ -45,6 +45,7 @@ pub fn main() !void {
 
         std.debug.print("\nZ-Machine Information:\n", .{});
         std.debug.print("\tStory Version: {d}\n", .{vm.headers.story_version()});
+        std.debug.print("\tStory Serial: {s}\n", .{vm.headers.serial()});
         std.debug.print("\tStory Length: {d}KB (max address: 0x{X:0>8})\n", .{ vm.headers.story_length() / KILOBYTES, vm.headers.story_length() - 1 });
         std.debug.print("\tStory Checksum: 0x{X:0>4}\n", .{vm.headers.story_checksum()});
         std.debug.print("\tHigh Memory Base: 0x{X:0>4}\n", .{vm.headers.high_mem_base()});
